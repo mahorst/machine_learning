@@ -155,3 +155,5 @@ Prediction of the testing data.
 testing$pred1 <- predict(modFit, testing)
 testing$pred1
 ```
+##  [1] A A A A A E D C A A A C B A B E A B B B
+## Levels: A B C D E
