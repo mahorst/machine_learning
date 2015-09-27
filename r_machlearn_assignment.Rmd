@@ -54,7 +54,7 @@ I conducted near zero value assessment and constructed a Spearman correlation ma
 #subtraining <- training[, c(8:59, 61)]
 #rcorr(as.matrix(subtraining), type="spearman")
 ```
-https://github.com/mahorst/machine_learning/blob/master/fig/image1.png
+![Image](https://github.com/mahorst/machine_learning/blob/master/fig/image1.png?raw=true)
 
 Noting that several variables had little or no association with the classe outcome variable, I constructed multinomial logistic regression models with a loop to help narrow the number of relevant predictor variables. The predicted outcome variable was the classe variable with "A" set as the referent outcome.
 
