@@ -1,0 +1,150 @@
+---
+title: "Machine Learning"
+author: "mike horst"
+date: "September 27, 2015"
+output: html_document
+---
+
+Machine Learning Project
+
+Loading data with summary information. I am commenting out some of the summary functions to save space on the final HTML.
+
+```{r}
+library(ggplot2); library(caret); library(Hmisc); library(nnet)
+setwd("~/statistics/R_machine_learning")
+# Reproducable results
+set.seed(7158)
+#setwd("H:/statistics/R_machine_learning")
+training <- read.csv("pml-training.csv")
+testing <- read.csv("pml-testing.csv")
+#str(training)
+#head(training)
+#table(training$classe)
+```
+
+I found that the training data set contained summary rows which needed to be eliminated as the testing data set was based on individual measures. The following code removes these rows.
+
+```{r}
+# Remove columns that only report summary data measures
+nas <- colnames(training)[colSums(is.na(training)) == 0]
+training <- training[, colnames(training) %in% nas]
+nasc <- colnames(training)[colSums(training == "") == 0]        
+training <- training[, colnames(training) %in% nasc]
+```
+
+I then constructed boxplots for each variable relative to the classe variable to look for associations and outliers. I produced some extra plots to look specifically at associaitons with outliers excluded. The plots and code are excluded in the output to meet the 5 plot and text limit.
+
+I found some outliers and elected to eliminate them to enhance predictions.
+
+```{r}
+# Remove outlier observations
+training <- training[(training$gyros_dumbbell_x > -50 & training$gyros_dumbbell_y < 20 
+                      & training$gyros_dumbbell_z < 100 & training$magnet_dumbbell_y > -1000 & training$total_accel_forearm < 90 &
+                              training$gyros_forearm_x > -20 & training$gyros_forearm_y < 100 & training$gyros_forearm_z < 100), ]
+```
+
+I conducted near zero value assessment and constructed a Spearman correlation matrix to look at associations between variables and with the classes outcome variable. The code are commented out to save space on the HTML output.
+
+```{r}
+# Near zero value assessment
+#nzv <- nearZeroVar(training, saveMetrics=TRUE)
+#nzv
+# Create Spearman correlation matrix
+#training$classe.n <- as.numeric(training$classe)
+#subtraining <- training[, c(8:59, 61)]
+#rcorr(as.matrix(subtraining), type="spearman")
+```
+
+Noting that several variables had little or no association with the classe outcome variable, I constructed multinomial logistic regression models with a loop to help narrow the number of relevant predictor variables. The predicted outcome variable was the classe variable with "A" set as the referent outcome.
+
+```{r}
+# Multinomial logistic regression
+test3 <- NULL
+for(i in 8:59) {
+        test <- multinom(classe ~ training[, i], data=training)
+        test2 <- exp(coef(test))
+        test2 <- data.frame(test2[, 2])
+        test2$measure <- colnames(training[i])
+        test2$classe <- rownames(test2)
+        rownames(test2) <- NULL
+        colnames(test2) <- c("rr", "measure", "classe")
+        test3 <- rbind(test3, test2)
+}
+```
+
+The following is a plot of multinomial logistic regression range of relative risks for each variable. Based on these data, I subsetted variables to include only those >= to the 3rd quartile so that I am essentially selecting only those that are most associated with the classe outcome variable.
+
+```{r}
+# Plot of range of regression relative risks
+rr.min <- data.frame(tapply(test3$rr, test3$measure, min))
+rr.max <- data.frame(tapply(test3$rr, test3$measure, max))
+rr.range <- cbind(rr.min, rr.max)
+rm(rr.min); rm(rr.max)
+rr.range$measure <- rownames(rr.range)
+rownames(rr.range) <- NULL
+colnames(rr.range) <- c("min", "max", "measure")
+rr.range$range <- rr.range$max - rr.range$min
+summary(rr.range$range)
+quart3 <- quantile(rr.range$range, probs=0.75)
+p <- ggplot(rr.range, aes(measure, range, fill=measure))
+bar <- geom_bar(stat = "identity")
+title <- ggtitle("Range of RR by Measure")
+cf <- coord_flip()
+th <- theme(legend.position="none")
+line <- geom_hline(yintercept = quart3)
+p + bar + title + cf + th + line
+# Subset for variables with highest association
+incl.var <- rr.range$measure[rr.range$range >= quart3]
+incl.var <- c(incl.var, "classe")
+subtraining <- training[, (colnames(training) %in% incl.var)]
+```
+
+I first tried some trees and other models, but settled on a random forest model as it was producing the most accurate predictions on the training data set. To get the random forest to run, I needed to further subset the training data set.
+
+```{r}
+# Random forest with a random subset of data so that it will run on a desktop
+# And only variables that are associated from bivariate analyses
+rfselection <- createDataPartition(y=subtraining$classe, p=0.10, list=FALSE)
+subtraining2 <- subtraining[rfselection, ]
+modFit <- train(classe ~., data=subtraining2, method="rf", prox=TRUE,
+                trControl=trainControl(method="cv", number=10), allowParallel=TRUE)
+print(modFit)
+print(modFit$finalModel)
+plot(modFit)
+```
+
+Here is the assessment of accuracy with the training dataset.
+
+```{r}
+st2validtrain <- subtraining2
+st2validtrain$pred1 <- predict(modFit, st2validtrain)
+st2validtrain$pred1right <- st2validtrain$pred1 == st2validtrain$classe
+confusionMatrix(st2validtrain$pred1, st2validtrain$classe)
+```
+
+Assessment of importance of variables.
+
+```{r}
+# Calculate importance
+importance <- varImp(modFit, scale=FALSE)
+# Summarize importance
+print(importance)
+# Plot importance
+plot(importance)
+result <- rfcv(trainx = subtraining2[, 1:13], trainy = subtraining2[, 14], ntree = 20)
+with(result, plot(n.var, 
+                  error.cv, 
+                  log = "x", 
+                  type = "o", 
+                  lwd = 2, 
+                  xlab = "Number of variables", 
+                  ylab = "CV Error"))
+```
+
+Prediction of the testing data.
+
+```{r}
+# Predicting testing data
+testing$pred1 <- predict(modFit, testing)
+testing$pred1
+```
