@@ -100,6 +100,8 @@ incl.var <- c(incl.var, "classe")
 subtraining <- training[, (colnames(training) %in% incl.var)]
 ```
 
+![Image](https://github.com/mahorst/machine_learning/blob/master/fig/image2.png?raw=true)
+
 I first tried some trees and other models, but settled on a random forest model as it was producing the most accurate predictions on the training data set. To get the random forest to run, I needed to further subset the training data set.
 
 ```{r}
@@ -113,6 +115,8 @@ print(modFit)
 print(modFit$finalModel)
 plot(modFit)
 ```
+
+![Image](https://github.com/mahorst/machine_learning/blob/master/fig/image3.png?raw=true)
 
 Here is the assessment of accuracy with the training dataset.
 
@@ -141,6 +145,8 @@ with(result, plot(n.var,
                   xlab = "Number of variables", 
                   ylab = "CV Error"))
 ```
+
+![Image](https://github.com/mahorst/machine_learning/blob/master/fig/image4.png?raw=true)
 
 Prediction of the testing data.
 
